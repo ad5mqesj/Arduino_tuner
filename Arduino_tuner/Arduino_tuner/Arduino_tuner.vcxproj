@@ -165,6 +165,7 @@
     <DebuggerFlavor>VisualMicroDebugger</DebuggerFlavor>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="..\..\.gitignore" />
     <None Include="Arduino_tuner.ino" />
     <None Include="src\arduino folders read me.txt">
     </None>

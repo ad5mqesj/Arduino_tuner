@@ -45,6 +45,10 @@ void setup() {
   
   delay(100);
   
+  //setup analog inputs
+  pinMode(FWDPIN, INPUT);
+  pinMode(REFPIN, INPUT);
+
   //change bridge pin to output
   pinMode(relayBridge, OUTPUT);
   digitalWrite(relayBridge, LOW); //Bridge output High initially

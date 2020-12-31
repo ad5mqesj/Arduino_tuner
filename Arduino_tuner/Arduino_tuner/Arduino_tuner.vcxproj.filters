@@ -19,6 +19,7 @@
       <Filter>Misc Files</Filter>
     </None>
     <None Include="Arduino_tuner.ino" />
+    <None Include="..\..\.gitignore" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.Arduino_tuner.vsarduino.h">
