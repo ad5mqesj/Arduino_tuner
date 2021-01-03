@@ -12,14 +12,18 @@
  *  t- tune
  * 
  */
+#include <Wire.h>
+#include <Adafruit_MCP23017.h>
 #include <EEPROM.h>
 #include <math.h>
+
 #include "prototypes.h"
 
 
-int CapRelay = A3;
-int relayBridge = A4;
-//int LED = A5;
+int CapRelay = 14; //GPB6 expander
+int relayBridge = 15; //GPB7 expander
+int LED = 2;    //D2 pin main board
+int tuneButton = 3;//D3 pin 
 
 int FWDPIN = A0;
 int REFPIN = A1;
@@ -34,43 +38,50 @@ relayState cIn;
 relayState L[7];
 relayState C[7];
 
+Adafruit_MCP23017 mcp;
+
 void setup() {
-  Serial.begin(38400);
+    //change LED pin to output
+    pinMode(LED, OUTPUT);
+    digitalWrite(LED, HIGH); //LED off
+    
+    Serial.begin(38400);
+    mcp.begin();
 
-  memset(control_port_buffer, 0, sizeof(control_port_buffer));
+    memset(control_port_buffer, 0, sizeof(control_port_buffer));
   
-  #ifdef DEBUG
+    #ifdef DEBUG
     Serial.println("Tuner setup");
-  #endif
+    #endif
   
-  delay(100);
+    delay(100);
   
-  //setup analog inputs
-  pinMode(FWDPIN, INPUT);
-  pinMode(REFPIN, INPUT);
+    //setup analog inputs
+    pinMode(FWDPIN, INPUT);
+    pinMode(REFPIN, INPUT);
 
-  //change bridge pin to output
-  pinMode(relayBridge, OUTPUT);
-  digitalWrite(relayBridge, LOW); //Bridge output High initially
+    //setup tune button in
+    pinMode(tuneButton, INPUT_PULLUP);
 
-  //change LED pin to output
-  //pinMode(LED, OUTPUT);
-  //digitalWrite(LED, LOW); //LED on
+    //change bridge pin to output
+    mcp.pinMode(relayBridge, OUTPUT);
+    mcp.digitalWrite(relayBridge, LOW); //Bridge output High initially
 
-  //change input relay to input to tri-state after establishing state
-  cIn.relay = CapRelay;
-  cIn.state = 0;
-  ToggleRelay(&cIn, 0);
 
-  //setup all digital relay pins as input (tri-stateed) after establishing known state for relays
-  initializeRelayStates();
+    //change input relay to input to tri-state after establishing state
+    cIn.relay = CapRelay;
+    cIn.state = 0;
+    ToggleRelay(&cIn, 0);
+
+    //setup all digital relay pins as input (tri-stateed) after establishing known state for relays
+    initializeRelayStates();
   
+    digitalWrite(LED, LOW); //LED on
 }//setup()
 
 void loop() {
   checkSerial();
   delay(100);
-  
 }//loop()
 
 
@@ -120,48 +131,48 @@ void processCommand()
 
   switch (control_port_buffer[0]){
     case 'C':
-      cNow = getCurrentValue (C);
-      cNow++;
-      if (cNow > 127)
+        cNow = getCurrentValue (C);
+        cNow++;
+        if (cNow > 127)
         cNow = 0;
-      setStates (C, cNow);
-      Serial.print ("Current capacitance : ");
-      Serial.print (cNow*10);
-      Serial.println (" pF");
-      break;
+        setStates (C, cNow);
+        Serial.print ("Current capacitance : ");
+        Serial.print (cNow*10);
+        Serial.println (" pF");
+        break;
     
     case 'c':
-      cNow = getCurrentValue (C);
-      cNow--;
-      if (cNow < 0)
+        cNow = getCurrentValue (C);
+        cNow--;
+        if (cNow < 0)
         cNow = 127;
-      setStates (C, cNow);
-      Serial.print ("Current capacitance : ");
-      Serial.print (cNow*10);
-      Serial.println (" pF");
-      break;
+        setStates (C, cNow);
+        Serial.print ("Current capacitance : ");
+        Serial.print (cNow*10);
+        Serial.println (" pF");
+        break;
 
     case 'L':
-      lNow = getCurrentValue (L);
-      lNow++;
-      if (lNow > 127)
+        lNow = getCurrentValue (L);
+        lNow++;
+        if (lNow > 127)
         lNow = 0;
-      setStates (L, lNow);
-      Serial.print ("Current inductance : ");
-      Serial.print ((float)lNow*0.10);
-      Serial.println (" uH");
-      break;
+        setStates (L, lNow);
+        Serial.print ("Current inductance : ");
+        Serial.print ((float)lNow*0.10);
+        Serial.println (" uH");
+        break;
     
     case 'l':
-      lNow = getCurrentValue (L);
-      lNow--;
-      if (lNow < 0)
+        lNow = getCurrentValue (L);
+        lNow--;
+        if (lNow < 0)
         lNow = 127;
-      setStates (L, lNow);
-      Serial.print ("Current capacitance : ");
-      Serial.print ((float)lNow*0.10);
-      Serial.println (" uH");
-      break;
+        setStates (L, lNow);
+        Serial.print ("Current capacitance : ");
+        Serial.print ((float)lNow*0.10);
+        Serial.println (" uH");
+        break;
 
     case 'R':
         setStates(L, 0);
@@ -169,15 +180,18 @@ void processCommand()
         break;
 
     case 'd':
-      printCurrentVals();
-      break;
+    case 'D':
+        printCurrentVals();
+        break;
 
     case 'S':
-      Serial.print ("Current fwd counts : ");
-      Serial.println (fwd);
-      Serial.print ("Current ref counts : ");
-      Serial.println (ref);
-      break;
+        fwd = analogRead(FWDPIN);
+        ref = analogRead(REFPIN);
+        Serial.print ("Current fwd counts : ");
+        Serial.println (fwd);
+        Serial.print ("Current ref counts : ");
+        Serial.println (ref);
+        break;
 
     case 's':
         float swr = getSwr();
@@ -189,8 +203,9 @@ void processCommand()
         tune();
         printCurrentVals();
         break;
+
     default:
-    break;
+        break;
   }//switch
 }//processCommand
 
@@ -382,14 +397,14 @@ void ToggleRelay(relayState* CurrentState, int toggle = 1)
 {
     if ((CurrentState->state > 0 && toggle > 0) || (CurrentState->state == 0 && toggle == 0)) //relay set - then reset
     {
-        digitalWrite(relayBridge, LOW); //able to "RESET" relays to NC position 
-        pinMode(CurrentState->relay, OUTPUT);
+        mcp.digitalWrite(relayBridge, LOW); //able to "RESET" relays to NC position 
+        mcp.pinMode(CurrentState->relay, OUTPUT);
         delay(20);
-        digitalWrite(CurrentState->relay, LOW); //reset relay
+        mcp.digitalWrite(CurrentState->relay, LOW); //reset relay
         delay(100); //give relay time to settle
-        digitalWrite(CurrentState->relay, HIGH);
+        mcp.digitalWrite(CurrentState->relay, HIGH);
         delay(20);
-        pinMode(CurrentState->relay, INPUT);
+        mcp.pinMode(CurrentState->relay, INPUT);
         CurrentState->state = 0;
 #ifdef DEBUGRELAY
         Serial.print("ToggleRelay CurrentState->state = ");
@@ -398,14 +413,14 @@ void ToggleRelay(relayState* CurrentState, int toggle = 1)
     }
     else
     {
-        digitalWrite(relayBridge, HIGH); //able to "SET" relays to NO position 
-        pinMode(CurrentState->relay, OUTPUT);
+        mcp.digitalWrite(relayBridge, HIGH); //able to "SET" relays to NO position 
+        mcp.pinMode(CurrentState->relay, OUTPUT);
         delay(20);
-        digitalWrite(CurrentState->relay, HIGH); //set relay
+        mcp.digitalWrite(CurrentState->relay, HIGH); //set relay
         delay(100); //give relay time to settle
-        digitalWrite(CurrentState->relay, LOW);
+        mcp.digitalWrite(CurrentState->relay, LOW);
         delay(20);
-        pinMode(CurrentState->relay, INPUT);
+        mcp.pinMode(CurrentState->relay, INPUT);
         CurrentState->state = 1;
 #ifdef DEBUGRELAY
         Serial.print("ToggleRelay CurrentState->state = ");
@@ -423,8 +438,6 @@ void initializeRelayStates()
         L[i].relay = i;
         C[i].relay = i + 7;
     }
-    L[0].relay = A2;
-    L[1].relay = A5;
 
     //set everything to "on" so Toggle will reset to off
     setStates(L, 0);
