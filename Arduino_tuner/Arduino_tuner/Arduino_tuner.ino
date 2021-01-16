@@ -14,14 +14,16 @@
  */
 #include <Wire.h>
 #include <Adafruit_MCP23017.h>
+#include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
 #include <math.h>
 
 #include "prototypes.h"
 
 
-int CapRelay = 14; //GPB6 expander
+int CapRelay = 8; //GPB6 expander
 int relayBridge = 15; //GPB7 expander
+
 int LED = 2;    //D2 pin main board
 int tuneButton = 3;//D3 pin 
 
@@ -39,6 +41,7 @@ relayState L[7];
 relayState C[7];
 
 Adafruit_MCP23017 mcp;
+LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x27, 16, 2); // Change to (0x27,20,4) for 20x4 LCD.
 
 void setup() {
     //change LED pin to output
@@ -76,12 +79,24 @@ void setup() {
     //setup all digital relay pins as input (tri-stateed) after establishing known state for relays
     initializeRelayStates();
   
+    lcd.init();
+    lcd.backlight();
     digitalWrite(LED, LOW); //LED on
 }//setup()
 
 void loop() {
+  char strBuf[17];
+  float swr; 
   checkSerial();
   delay(100);
+  swr = getSwr();
+  sprintf(strBuf, "FWD %3d  REF %3d", fwd, ref);
+  lcd.setCursor(0, 0);
+  lcd.print(strBuf);
+
+  lcd.setCursor(0, 1); //second line
+  sprintf(strBuf, "SWR %4.2f", swr);
+  lcd.print(strBuf);
 }//loop()
 
 
@@ -432,11 +447,12 @@ void ToggleRelay(relayState* CurrentState, int toggle = 1)
 
 void initializeRelayStates()
 {
-    for (int i = 0; i < 7; i++)
+    int relayMapping[] = {0,8,1,9,2,10,3,11,4,12,5,13,6,14};
+    for (int i = 0; i < 14; i+=2)
     {
         //establish relay data line correspondance
-        L[i].relay = i;
-        C[i].relay = i + 7;
+        L[i].relay = relayMapping[i];
+        C[i].relay = relayMapping[i+1];
     }
 
     //set everything to "on" so Toggle will reset to off
