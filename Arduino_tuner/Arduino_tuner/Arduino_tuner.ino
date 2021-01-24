@@ -36,12 +36,14 @@ byte control_port_buffer[COMMAND_BUFFER_SIZE];
 int control_port_buffer_index = 0;
 unsigned long last_serial_receive_time = 0;
 int fwd, ref;
+float coeffs[3] = { 0.65, 0.0205, 0.0001 };
 
 relayState cIn;
 
 relayState L[7];
 relayState C[7];
 int tuneInProgress = 0;
+int loopcount = 0;
 
 Adafruit_MCP23017 mcp;
 LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x27, 16, 2); // Change to (0x27,20,4) for 20x4 LCD.
@@ -87,11 +89,13 @@ void setup() {
     digitalWrite(LED, LOW); //LED on
 }//setup()
 
+float avswr = 0.0, fwPwr = 0.0, refPwr = 0.0;
+float avgfwd = 0.0, avgRef = 0.0;
+
 void loop() {
   char strBuf[17];
-  float swr; 
-  char temp[8];
-
+  char temp[8], temp1[8];
+  
   checkSerial();
   delay(100);
   //read tune button and initiate cycle if pressed
@@ -100,16 +104,50 @@ void loop() {
   {
       tune();
   }
-  swr = getSwr();
-  sprintf(strBuf, "FWD %3d  REF %3d", fwd, ref);
+  avswr += getSwr();
+  avgfwd += fwd;
+  avgRef += ref;
 
-  lcd.setCursor(0, 0);
-  lcd.print(strBuf);
+  loopcount++;
 
-  lcd.setCursor(0, 1); //second line
-  dtostrf(swr, 4, 2, temp);
-  sprintf(strBuf, "SWR %s", temp);
-  lcd.print(strBuf);
+  if (loopcount == 10)
+  {
+      //smoothed averages
+      avswr = avswr / 10.0;
+      avgfwd = avgfwd / 10.0;
+      avgRef = avgRef / 10.0;
+      //convert to watts
+      if (avgfwd > 5)
+      {
+          fwPwr = coeffs[2] * avgfwd * avgfwd + coeffs[1] * avgfwd + coeffs[0];
+      }
+      else
+          fwPwr = 0.0;
+
+      if (avgRef > 5)
+      {
+          refPwr = coeffs[2] * avgRef * avgRef + coeffs[1] * avgRef + coeffs[0];
+      }
+      else
+      {
+          refPwr = 0.0;
+      }
+      dtostrf(fwPwr, 3, 0, temp);
+      dtostrf(refPwr, 3, 0, temp1);
+      sprintf(strBuf, "FWD %s REF %s", temp, temp1);
+
+      lcd.setCursor(0, 0);
+      lcd.print(strBuf);
+
+      lcd.setCursor(0, 1); //second line
+      dtostrf(avswr, 4, 1, temp);
+      sprintf(strBuf, "SWR %s", temp);
+      lcd.print(strBuf);
+      loopcount = 0;
+      avswr = 0.0;
+      avgfwd = 0.0;
+      avgRef = 0.0;
+  }
 }//loop()
 
 
