@@ -21,10 +21,10 @@
 #include "prototypes.h"
 
 
-int CapRelay = 8; //GPB6 expander
+int CapRelay = 8; //GPA7 expander
 int relayBridge = 15; //GPB7 expander
 
-int LED = 2;    //D2 pin main board
+int LED = 2;        //D2 pin main board
 int tuneButton = 3;//D3 pin 
 
 int FWDPIN = A0;
@@ -39,6 +39,7 @@ relayState cIn;
 
 relayState L[7];
 relayState C[7];
+int tuneInProgress = 0;
 
 Adafruit_MCP23017 mcp;
 LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x27, 16, 2); // Change to (0x27,20,4) for 20x4 LCD.
@@ -87,15 +88,25 @@ void setup() {
 void loop() {
   char strBuf[17];
   float swr; 
+  char temp[8];
+
   checkSerial();
   delay(100);
+  //read tune button and initiate cycle if pressed
+  int val = digitalRead(tuneButton);
+  if (val == 0  && tuneInProgress == 0)
+  {
+      tune();
+  }
   swr = getSwr();
   sprintf(strBuf, "FWD %3d  REF %3d", fwd, ref);
+
   lcd.setCursor(0, 0);
   lcd.print(strBuf);
 
   lcd.setCursor(0, 1); //second line
-  sprintf(strBuf, "SWR %4.2f", swr);
+  dtostrf(swr, 4, 2, temp);
+  sprintf(strBuf, "SWR %s", temp);
   lcd.print(strBuf);
 }//loop()
 
@@ -235,11 +246,12 @@ void tune()
     * if no coarse match (swr < 3:1) set cap to input side and try again
     * once coarse match found refine till swr < 1.5 : 1
     */
-
+    tuneInProgress = 1;
     minswr = 10;
     swr = getSwr();
     //if we have an adequate match exit
     if (swr <= 1.5) {
+        tuneInProgress = 0;
         return;
     }
     //set initial conditions
@@ -334,6 +346,7 @@ void tune()
 
     //now refine C if necessary
     if (swr <= 1.5) {
+        tuneInProgress = 0;
         return;
     }
     dir = 1;
@@ -352,11 +365,13 @@ void tune()
         setStates(C, cNow);
         swr = getSwr();
     }
+
     //backup inductor by 1 since we stepped past to see increase
     cNow += (dir > 0 ? -1 : 1);
     setStates(C, cNow);
     swr = getSwr();
     minswr = swr;
+    tuneInProgress = 0;
 }
 
 void printCurrentVals()
@@ -381,7 +396,7 @@ float getSwr()
 {
     fwd = analogRead(FWDPIN);
     ref = analogRead(REFPIN);
-    if (fwd == 0)
+    if (fwd < 2)    //allow some slop in A/D
         return 1.0;
     float num = 1.0 + sqrt((float)ref / (float)fwd);
     float denom = 1.0 - sqrt((float)ref / (float)fwd);
