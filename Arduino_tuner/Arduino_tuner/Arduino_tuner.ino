@@ -3,6 +3,8 @@
  * commands:
  *  C - cap up - show current
  *  c - cap down  - show current
+ *  a - c on INPUT side
+ *  A - c on OUTPUT side
  *  L - ind up - show current
  *  l - ind down - show current
  *  R - reset all to 0
@@ -176,6 +178,16 @@ void processCommand()
         Serial.print ("Current capacitance : ");
         Serial.print (cNow*10);
         Serial.println (" pF");
+        break;
+
+    case 'a':
+        cIn.state = 1;
+        ToggleRelay(&cIn, 0);
+        break;
+
+    case 'A':
+        cIn.state = 0;
+        ToggleRelay(&cIn, 0);
         break;
 
     case 'L':
