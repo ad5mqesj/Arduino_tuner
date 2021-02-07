@@ -299,30 +299,33 @@ void tune()
     * First set cap to output side, reset tuner L,C settings
     * step through inductors 1 at a time to find best match
     * then step through caps 1 at a time
-    * if no coarse match (swr < 3:1) set cap to input side and try again
+    * if no coarse match (swr < 2:1) set cap to input side and try again
     * once coarse match found refine till swr < 1.5 : 1
     */
     tuneInProgress = 1;
+
     minswr = 10;
     swr = getSwr();
     //if we have an adequate match exit
     if (swr <= 1.5) {
         peakswr = swr;
         tuneInProgress = 0;
+        printCurrentVals();
         return;
     }
+
     //set initial conditions
-    Serial.print("Tune - reset all");
+    Serial.println("Tune - reset all");
     cIn.state = 0;
     ToggleRelay(&cIn, 0);
     setStates(L, 0);
     setStates(C, 0);
 
     //coarse L
-    if (debugTune > 0) Serial.print("Tune - Coarse L set");
-    for (int i = 0; i < 7; i++)
+    if (debugTune > 0) Serial.println("Tune - Coarse L set");
+    for (int i = 0; i <128; i++)
     {
-        lNow = 1 << i;
+        lNow = i;
         setStates(L, lNow);
         swr = getSwr();
         if (minswr > swr)
@@ -330,35 +333,26 @@ void tune()
             minswr = swr;
             lCoarse = lNow;
         }
+        else if (swr > minswr + 1.0)    //exit if we are getting significantly worse
+            break;
+
         if (debugTune > 0)
         {
-            Serial.print("Current inductance : ");
-            Serial.print((float)lNow * 0.10);
-            Serial.println(" uH");
-
-            dtostrf(swr, 4, 1, temp);
-            sprintf(strBuf, "SWR %s", temp);
-            Serial.println(strBuf);
+            printVals(0, lNow, swr);
         }
     }
     setStates(L, lCoarse);  //set to best inductor
 
     if (debugTune > 0)
     {
-        swr = getSwr();
-        Serial.print("final coarse inductance : ");
-        Serial.print((float)lCoarse * 0.10);
-        Serial.println(" uH");
-
-        dtostrf(swr, 4, 1, temp);
-        sprintf(strBuf, "SWR %s", temp);
-        Serial.println(strBuf);
+        printVals(0, lCoarse, swr);
     }
+
     //coarse C
-    if (debugTune > 0) Serial.print("Tune - Coarse C set");
-    for (int i = 0; i < 7; i++)
+    if (debugTune > 0) Serial.println("Tune - Coarse C set");
+    for (int i = 0; i < 128; i++)
     {
-        cNow = 1 << i;
+        cNow = i;
         setStates(C, cNow);
         swr = getSwr();
         if (minswr > swr)
@@ -366,57 +360,36 @@ void tune()
             minswr = swr;
             cCoarse = cNow;
         }
+        else if (swr > minswr + 1.0)    //exit if we are getting significantly worse
+            break;
         if (debugTune > 0)
         {
-            Serial.print("Current capacitance : ");
-            Serial.print(cNow * 10);
-            Serial.println(" pF");
-
-            dtostrf(swr, 4, 1, temp);
-            sprintf(strBuf, "SWR %s", temp);
-            Serial.println(strBuf);
+            printVals(cNow, lCoarse, swr);
         }
     }
     setStates(C, cCoarse);  //set to best capacitor
     swr = getSwr();
     if (debugTune > 0)
     {
-        Serial.print("final coarse capacitance : ");
-        Serial.print(cCoarse * 10);
-        Serial.println(" pF");
-
-        dtostrf(swr, 4, 1, temp);
-        sprintf(strBuf, "SWR %s", temp);
-        Serial.println(strBuf);
+        printVals(cCoarse, lCoarse, swr);
     }
+
     mincOutswr = swr;
     minCOut = cCoarse;
 
     if (swr > 2.0)
     {
-        if (debugTune > 0) Serial.print("Tune - change C to input side and try again");
+        if (debugTune > 0) Serial.println("Tune - change C to input side and try again");
         //try again with C on input side
         cIn.state = 1;
         ToggleRelay(&cIn, 0);
         setStates(C, 0);
 
-        if (debugTune > 0)
+         //coarse C
+        if (debugTune > 0) Serial.println("Tune - Coarse C set");
+        for (int i = 0; i < 128; i++)
         {
-            swr = getSwr();
-            Serial.print("Current capacitance : ");
-            Serial.print(cNow * 10);
-            Serial.println(" pF");
-
-            dtostrf(swr, 4, 1, temp);
-            sprintf(strBuf, "SWR %s", temp);
-            Serial.println(strBuf);
-        }
-
-        //coarse C
-        if (debugTune > 0) Serial.print("Tune - Coarse C set");
-        for (int i = 0; i < 7; i++)
-        {
-            cNow = 1 << i;
+            cNow = i;
             setStates(C, cNow);
             swr = getSwr();
             if (minswr > swr)
@@ -424,15 +397,11 @@ void tune()
                 minswr = swr;
                 cCoarse = cNow;
             }
+            else if (swr > minswr + 1.0)    //exit if we are getting significantly worse
+                break;
             if (debugTune > 0)
             {
-                Serial.print("Current capacitance : ");
-                Serial.print(cNow * 10);
-                Serial.println(" pF");
-
-                dtostrf(swr, 4, 1, temp);
-                sprintf(strBuf, "SWR %s", temp);
-                Serial.println(strBuf);
+                printVals(cNow, lCoarse, swr);
             }
         }
         setStates(C, cCoarse);  //set to best capacitor
@@ -440,21 +409,18 @@ void tune()
 
         if (debugTune > 0)
         {
-            Serial.print("Current capacitance : ");
-            Serial.print(cNow * 10);
-            Serial.println(" pF");
-
-            dtostrf(swr, 4, 1, temp);
-            sprintf(strBuf, "SWR %s", temp);
-            Serial.println(strBuf);
+            printVals(cCoarse, lCoarse, swr);
         }
     }
     //if best swr is on c out side switch back
     if (mincOutswr < swr)
     {
+        if (debugTune > 0) Serial.println("Best cIn worse than best cOut - reverting");
         ToggleRelay(&cIn);
         setStates(C, minCOut);  //set to best capacitor
         swr = getSwr();
+        cCoarse = minCOut;
+        printVals(cCoarse, lCoarse, swr);
     }
 
     //now refine tuning if necessary
@@ -462,18 +428,7 @@ void tune()
     {
         if (debugTune > 0)
         {
-            Serial.print("Current inductance : ");
-            Serial.print((float)lNow * 0.10);
-            Serial.println(" uH");
-
-            Serial.print("Current capacitance : ");
-            Serial.print(cNow * 10);
-            Serial.println(" pF");
-
-            dtostrf(swr, 4, 1, temp);
-            sprintf(strBuf, "SWR %s", temp);
-            Serial.println(strBuf);
-            Serial.println("Tuning complete");
+            Serial.println("Tuneing complete");
         }
         tuneInProgress = 0;
         peakswr = swr;
@@ -486,15 +441,15 @@ void tune()
         minswr = swr;
     }
     //determine if increase or decrease improves swr
-    if (debugTune > 0) Serial.print("Tune - Fine L set");
+    if (debugTune > 0) Serial.println("Tune - refine L set");
     dir = 1;
-    lNow = lCoarse + dir;
+    lNow = lCoarse + dir*2;
     setStates(L, lNow);
     swr = getSwr();
     if (minswr < swr)
     {
         dir = -1;
-        lNow = lCoarse - 2; //remove earlier increment and decreemnt instead
+        lNow = lCoarse - 3; //remove earlier increment and decreemnt instead
         setStates(L, lNow);
     }
     for (; minswr > swr; lNow += dir) //loop until swr stops improving
@@ -504,15 +459,10 @@ void tune()
         swr = getSwr();
         if (debugTune > 0)
         {
-            Serial.print("Current inductance : ");
-            Serial.print((float)lNow * 0.10);
-            Serial.println(" uH");
-
-            dtostrf(swr, 4, 1, temp);
-            sprintf(strBuf, "SWR %s", temp);
-            Serial.println(strBuf);
+            printVals(cCoarse, lNow, swr);
         }
     }
+
     //backup inductor by 1 since we stepped past to see increase
     lNow += (dir > 0 ? -1 : 1);
     setStates(L, lNow);
@@ -520,13 +470,8 @@ void tune()
     minswr = swr;
     if (debugTune > 0)
     {
-        Serial.print("fine adjust final inductance : ");
-        Serial.print((float)lNow * 0.10);
-        Serial.println(" uH");
-
-        dtostrf(swr, 4, 1, temp);
-        sprintf(strBuf, "SWR %s", temp);
-        Serial.println(strBuf);
+        Serial.println("fine adjust final inductance adjust");
+        printVals(cCoarse, lNow, swr);
     }
 
     //now refine C if necessary
@@ -536,15 +481,15 @@ void tune()
         return;
     }
 
-    if (debugTune > 0) Serial.print("Tune - Fine C set");
+    if (debugTune > 0) Serial.println("Tune - refine C set");
     dir = 1;
-    cNow = cCoarse + dir;
+    cNow = cCoarse + dir*2;
     setStates(C, cNow);
     swr = getSwr();
     if (minswr < swr)
     {
         dir = -1;
-        cNow = cCoarse - 2; //remove earlier increment and decreemnt instead
+        cNow = cCoarse - 3; //remove earlier increment and decreemnt instead
         setStates(C, cNow);
     }
     for (; minswr > swr; cNow += dir) //loop until swr stops improving
@@ -554,13 +499,7 @@ void tune()
         swr = getSwr();
         if (debugTune > 0)
         {
-            Serial.print("Current capacitance : ");
-            Serial.print(cNow * 10);
-            Serial.println(" pF");
-
-            dtostrf(swr, 4, 1, temp);
-            sprintf(strBuf, "SWR %s", temp);
-            Serial.println(strBuf);
+            printVals(cNow, lNow, swr);
         }
     }
 
@@ -571,14 +510,7 @@ void tune()
     minswr = swr;
     if (debugTune > 0)
     {
-        Serial.print("final fine capacitance : ");
-        Serial.print(cNow * 10);
-        Serial.println(" pF");
-
-        dtostrf(swr, 4, 1, temp);
-        sprintf(strBuf, "SWR %s", temp);
-        Serial.println(strBuf);
-        Serial.println("Tuning complete");
+        printVals(cNow, lNow, swr);
     }
     peakswr = swr;
     tuneInProgress = 0;
@@ -590,12 +522,17 @@ void printCurrentVals()
     int lNow = getCurrentValue(L);
     float swr = getSwr();
 
+    printVals(cNow, lNow, swr);
+}
+
+void printVals(int c, int l, float swr)
+{
     Serial.print("Current capacitance : ");
-    Serial.print(cNow * 10);
+    Serial.print(c * 10);
     Serial.println(" pF");
 
     Serial.print("Current inductance : ");
-    Serial.print((float)lNow * 0.10);
+    Serial.print((float)l * 0.10);
     Serial.println(" uH");
 
     Serial.print("Current swr : ");
