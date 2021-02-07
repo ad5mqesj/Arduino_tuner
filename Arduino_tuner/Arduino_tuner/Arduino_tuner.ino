@@ -87,7 +87,10 @@ void setup() {
   
     lcd.init();
     lcd.backlight();
+    lcd.setCursor(0, 0);
+    lcd.print("AD5MQ");
     digitalWrite(LED, LOW); //LED on
+    loopcount = 0;
 }//setup()
 
 float avswr = 0.0, fwPwr = 0.0, refPwr = 0.0;
@@ -95,16 +98,19 @@ float avgfwd = 0.0, avgRef = 0.0;
 float  peakswr = 1.0;
 
 void loop() {
+
   char strBuf[17];
   char temp[8], temp1[8];
   checkSerial();
-//  delay(20);
+
   //read tune button and initiate cycle if pressed
   int val = digitalRead(tuneButton);
+  
   if (val == 0  && tuneInProgress == 0)
   {
       tune();
   }
+
   avswr += getSwr();
   avgfwd += fwd;
   avgRef += ref;
@@ -253,16 +259,20 @@ void processCommand()
         Serial.println (" uH");
         break;
 
-    case 'R':
-        setStates(L, 0);
-        setStates(C, 0);
-        break;
-
     case 'd':
     case 'D':
         printCurrentVals();
         break;
 
+    case 'r':
+    case 'R':
+        if (DEBUG) Serial.println("reset all");
+        cIn.state = 0;
+        ToggleRelay(&cIn, 0);
+        setStates(L, 0);
+        setStates(C, 0);
+        break;
+ 
     case 'S':
         fwd = analogRead(FWDPIN);
         ref = analogRead(REFPIN);
@@ -278,7 +288,9 @@ void processCommand()
         Serial.println(swr);
         break;
 
-    case 't':
+    case 't':  
+    case 'T':
+        Serial.println("Tune");
         tune();
         printCurrentVals();
         break;
@@ -315,7 +327,7 @@ void tune()
     }
 
     //set initial conditions
-    Serial.println("Tune - reset all");
+    if (debugTune > 0) Serial.println("Tune - reset all");
     cIn.state = 0;
     ToggleRelay(&cIn, 0);
     setStates(L, 0);
