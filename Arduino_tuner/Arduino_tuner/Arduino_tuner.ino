@@ -97,7 +97,7 @@ void loop() {
   char temp[8], temp1[8];
   
   checkSerial();
-  delay(100);
+//  delay(20);
   //read tune button and initiate cycle if pressed
   int val = digitalRead(tuneButton);
   if (val == 0  && tuneInProgress == 0)
@@ -110,12 +110,12 @@ void loop() {
 
   loopcount++;
 
-  if (loopcount == 10)
+  if (loopcount == 5)
   {
       //smoothed averages
-      avswr = avswr / 10.0;
-      avgfwd = avgfwd / 10.0;
-      avgRef = avgRef / 10.0;
+      avswr = avswr / 5.0;
+      avgfwd = avgfwd / 5.0;
+      avgRef = avgRef / 5.0;
       //convert to watts
       if (avgfwd > 5)
       {
@@ -174,7 +174,7 @@ void checkSerial()
 #ifdef DEBUG
         Serial.println("Calling processCommand()");
 #endif
-        processCommand();
+      processCommand();
       clear_command_buffer();
     }
   }//if a byte is there
@@ -444,8 +444,16 @@ void printCurrentVals()
 
 float getSwr()
 {
-    fwd = analogRead(FWDPIN);
-    ref = analogRead(REFPIN);
+    int fwdavg = 0, revavg = 0;
+    for (int i = 0; i < 5; i++)
+    {
+        fwdavg += analogRead(FWDPIN);
+        revavg += analogRead(REFPIN);
+        delay(10);
+    }
+    fwd = fwdavg / 5;
+    ref = revavg / 5;
+
     if (fwd < 2)    //allow some slop in A/D
         return 1.0;
     float num = 1.0 + sqrt((float)ref / (float)fwd);
