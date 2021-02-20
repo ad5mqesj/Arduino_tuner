@@ -9,6 +9,9 @@ typedef struct
 	byte state;
 }relayState;
 
+extern int LrelayMapping[];
+extern int CrelayMapping[];
+
 extern int relayBridge;
 extern int LED;
 extern int CapRelay;
@@ -21,7 +24,7 @@ extern relayState L[7];
 extern relayState C[7];
 extern relayState cIn;
 
-extern byte control_port_buffer[COMMAND_BUFFER_SIZE];
+extern char control_port_buffer[COMMAND_BUFFER_SIZE];
 extern int control_port_buffer_index;
 extern unsigned long last_serial_receive_time;
 extern int fwd, ref;

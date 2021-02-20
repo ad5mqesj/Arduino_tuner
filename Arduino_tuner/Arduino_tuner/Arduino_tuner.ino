@@ -22,17 +22,20 @@
 
 #include "prototypes.h"
 
+//map L/C to port ID for port expander
+int LrelayMapping[] = { 0,8,1,9,2,10,3 };
+int CrelayMapping[] = { 11,4,12,5,13,6,14 };
 
-int CapRelay = 8; //GPA7 expander
+int CapRelay = 7;     //GPA7 expander
 int relayBridge = 15; //GPB7 expander
 
-int LED = 2;        //D2 pin main board
-int tuneButton = 3;//D3 pin 
+int LED = 2;          //D2 pin main board
+int tuneButton = 3;   //D3 pin 
 
 int FWDPIN = A0;
 int REFPIN = A1;
 
-byte control_port_buffer[COMMAND_BUFFER_SIZE];
+char control_port_buffer[COMMAND_BUFFER_SIZE];
 int control_port_buffer_index = 0;
 unsigned long last_serial_receive_time = 0;
 int fwd, ref;
@@ -163,7 +166,7 @@ void loop() {
 void clear_command_buffer()
 {
   control_port_buffer_index = 0;
-  control_port_buffer[0] = 0;
+  memset(control_port_buffer, 0, sizeof(control_port_buffer));
 }//clear_command_buffer
 
 void checkSerial()
@@ -176,8 +179,7 @@ void checkSerial()
     incomingByte = Serial.read();
     last_serial_receive_time = millis();
     if ((incomingByte != '\n') && (incomingByte != '\r') && (incomingByte != ' ')) {
-       control_port_buffer[control_port_buffer_index] = incomingByte;
-       control_port_buffer_index++;
+       control_port_buffer[control_port_buffer_index++] = (char)incomingByte;
     }
     else{
 #ifdef DEBUG
@@ -204,12 +206,20 @@ void processCommand()
   Serial.println((char)control_port_buffer[0]);
 #endif
 
-  switch (control_port_buffer[0]){
-    case 'C':
-        cNow = getCurrentValue (C);
-        cNow++;
-        if (cNow > 127)
-        cNow = 0;
+  switch (control_port_buffer[0]) {
+   case 'C':
+        if (control_port_buffer[1] == 0)
+        {
+            cNow = getCurrentValue(C);
+            cNow++;
+            if (cNow > 127)
+                cNow = 0;
+        }
+        else
+        {
+            int shf = atoi(&(control_port_buffer[1]));
+            cNow = 1 << shf-1;
+        }
         setStates (C, cNow);
         Serial.print ("Current capacitance : ");
         Serial.print (cNow*10);
@@ -238,10 +248,18 @@ void processCommand()
         break;
 
     case 'L':
-        lNow = getCurrentValue (L);
-        lNow++;
-        if (lNow > 127)
-        lNow = 0;
+        if (control_port_buffer[1] == 0)
+        {
+            lNow = getCurrentValue(L);
+            lNow++;
+            if (lNow > 127)
+                lNow = 0;
+        }
+        else
+        {
+            int shf = atoi(&(control_port_buffer[1]));
+            lNow = 1 << shf - 1;
+        }
         setStates (L, lNow);
         Serial.print ("Current inductance : ");
         Serial.print ((float)lNow*0.10);
@@ -629,12 +647,11 @@ void ToggleRelay(relayState* CurrentState, int toggle = 1)
 
 void initializeRelayStates()
 {
-    int relayMapping[] = {0,8,1,9,2,10,3,11,4,12,5,13,6,14};
-    for (int i = 0; i < 14; i+=2)
+    for (int i = 0; i < 7; i++)
     {
         //establish relay data line correspondance
-        L[i].relay = relayMapping[i];
-        C[i].relay = relayMapping[i+1];
+        L[i].relay = LrelayMapping[i];
+        C[i].relay = CrelayMapping[i];
     }
 
     //set everything to "on" so Toggle will reset to off
