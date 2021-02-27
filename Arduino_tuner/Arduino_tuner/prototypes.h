@@ -27,7 +27,7 @@ extern relayState cIn;
 extern char control_port_buffer[COMMAND_BUFFER_SIZE];
 extern int control_port_buffer_index;
 extern unsigned long last_serial_receive_time;
-extern int fwd, ref;
+extern float fwd, ref;
 
 void ToggleRelay(relayState* CurrentState, int toggle = 1);
 void setStates(relayState* stateArray, byte newValue);

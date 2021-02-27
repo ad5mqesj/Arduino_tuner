@@ -38,7 +38,7 @@ int REFPIN = A1;
 char control_port_buffer[COMMAND_BUFFER_SIZE];
 int control_port_buffer_index = 0;
 unsigned long last_serial_receive_time = 0;
-int fwd, ref;
+float fwd, ref;
 float coeffs[3] = { 0.65, 0.0205, 0.0001 };
 
 relayState cIn;
@@ -353,9 +353,9 @@ void tune()
 
     //coarse L
     if (debugTune > 0) Serial.println("Tune - Coarse L set");
-    for (int i = 0; i <128; i++)
+    for (int i = 0; i <7; i++)
     {
-        lNow = i;
+        lNow = 1 << i;
         setStates(L, lNow);
         swr = getSwr();
         if (minswr > swr)
@@ -380,9 +380,9 @@ void tune()
 
     //coarse C
     if (debugTune > 0) Serial.println("Tune - Coarse C set");
-    for (int i = 0; i < 128; i++)
+    for (int i = 0; i < 7; i++)
     {
-        cNow = i;
+        cNow = 1 << i;
         setStates(C, cNow);
         swr = getSwr();
         if (minswr > swr)
@@ -417,9 +417,9 @@ void tune()
 
          //coarse C
         if (debugTune > 0) Serial.println("Tune - Coarse C set");
-        for (int i = 0; i < 128; i++)
+        for (int i = 0; i < 7; i++)
         {
-            cNow = i;
+            cNow = 1 << i;
             setStates(C, cNow);
             swr = getSwr();
             if (minswr > swr)
@@ -482,7 +482,7 @@ void tune()
         lNow = lCoarse - 3; //remove earlier increment and decreemnt instead
         setStates(L, lNow);
     }
-    for (; minswr > swr; lNow += dir) //loop until swr stops improving
+    for (; minswr >= swr && (lNow < 32768 && lNow >=0); lNow += dir) //loop until swr stops improving
     {
         minswr = swr;
         setStates(L, lNow);
@@ -522,7 +522,7 @@ void tune()
         cNow = cCoarse - 3; //remove earlier increment and decreemnt instead
         setStates(C, cNow);
     }
-    for (; minswr > swr; cNow += dir) //loop until swr stops improving
+    for (; minswr >= swr && (cNow < 32768 && cNow >= 0); cNow += dir) //loop until swr stops improving
     {
         minswr = swr;
         setStates(C, cNow);
@@ -576,15 +576,19 @@ float getSwr()
     {
         fwdavg += analogRead(FWDPIN);
         revavg += analogRead(REFPIN);
-        delay(10);
+        delay(2);
     }
-    fwd = fwdavg / 5;
-    ref = revavg / 5;
+    fwd = (float)fwdavg / 5.0;
+    ref = (float)revavg / 5.0;
 
     if (fwd < 2)    //allow some slop in A/D
         return 1.0;
-    float num = 1.0 + sqrt((float)ref / (float)fwd);
-    float denom = 1.0 - sqrt((float)ref / (float)fwd);
+//    float num = 1.0 + sqrt((float)ref / (float)fwd);
+//    float denom = 1.0 - sqrt((float)ref / (float)fwd);
+
+    //detector output is in square law region - proportional to sqrt(power) rather than power
+    float num = fwd + ref;
+    float denom = fwd - ref;
     return num / denom;
 }
 
@@ -614,11 +618,11 @@ void ToggleRelay(relayState* CurrentState, int toggle = 1)
     {
         mcp.digitalWrite(relayBridge, LOW); //able to "RESET" relays to NC position 
         mcp.pinMode(CurrentState->relay, OUTPUT);
-        delay(20);
+        delay(2);
         mcp.digitalWrite(CurrentState->relay, LOW); //reset relay
-        delay(100); //give relay time to settle
+        delay(5); //give relay time to settle
         mcp.digitalWrite(CurrentState->relay, HIGH);
-        delay(20);
+        delay(2);
         mcp.pinMode(CurrentState->relay, INPUT);
         CurrentState->state = 0;
 #ifdef DEBUGRELAY
@@ -630,11 +634,11 @@ void ToggleRelay(relayState* CurrentState, int toggle = 1)
     {
         mcp.digitalWrite(relayBridge, HIGH); //able to "SET" relays to NO position 
         mcp.pinMode(CurrentState->relay, OUTPUT);
-        delay(20);
+        delay(2);
         mcp.digitalWrite(CurrentState->relay, HIGH); //set relay
-        delay(100); //give relay time to settle
+        delay(5); //give relay time to settle
         mcp.digitalWrite(CurrentState->relay, LOW);
-        delay(20);
+        delay(2);
         mcp.pinMode(CurrentState->relay, INPUT);
         CurrentState->state = 1;
 #ifdef DEBUGRELAY
